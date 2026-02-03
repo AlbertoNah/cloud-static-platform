@@ -1,0 +1,5 @@
+items:
+  - question: "What is this platform?"
+    answer: "A cloud-native static content API demo."
+  - question: "Is it cached?"
+    answer: "Yes, with a TTL cache."
