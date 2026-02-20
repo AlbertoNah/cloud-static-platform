@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-static-platform
+  namespace: cloud-static
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloud-static-platform
+  template:
+    metadata:
+      labels:
+        app: cloud-static-platform
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/albertonah/cloud-static-platform:latest
+          ports:
+            - containerPort: 5000
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud-static-platform-svc
+  namespace: cloud-static
+spec:
+  selector:
+    app: cloud-static-platform
+  ports:
+    - port: 80
+      targetPort: 5000
+  type: ClusterIP
