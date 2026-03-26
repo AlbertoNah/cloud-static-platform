@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Algorithme Hongrois — Simulateur</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#f8f8f6;--white:#ffffff;--black:#111110;
+  --gray:#6b6b68;--light:#e8e8e4;--rule:#d4d4cf;
+  --ink:#2a2a28;--surf:#f2f1ee;
+  --green-bg:#eaf3de;--green-tx:#3b6d11;
+  --red-bg:#fcebeb;--red-tx:#a32d2d;
+  --blue-bg:#e6f1fb;--blue-tx:#185fa5;
+  --amber-bg:#faeeda;--amber-tx:#854f0b;
+  --teal-bg:#e1f5ee;--teal-tx:#0f6e56;
+}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--ink);font-family:'Instrument Sans',sans-serif;font-size:16px;}
+
+/* ── LAYOUT ── */
+#app{display:grid;grid-template-rows:auto 1fr;height:100vh;}
+#topbar{background:var(--white);border-bottom:1px solid var(--rule);padding:14px 32px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+#topbar h1{font-size:17px;font-weight:500;color:var(--black);}
+#topbar h1 span{color:var(--gray);font-weight:400;}
+#main{display:grid;grid-template-columns:340px 1fr;height:100%;overflow:hidden;}
+
+/* ── SIDEBAR ── */
+#sidebar{background:var(--white);border-right:1px solid var(--rule);display:flex;flex-direction:column;overflow:hidden;}
+#sidebar-top{padding:20px 24px;border-bottom:1px solid var(--rule);}
+#explain{padding:16px 24px;font-size:14px;line-height:1.7;color:var(--ink);flex:1;overflow-y:auto;background:var(--surf);}
+#sidebar-nav{padding:14px 24px;border-top:1px solid var(--rule);display:flex;gap:8px;align-items:center;background:var(--white);}
+#sidebar-nav button{padding:8px 16px;font-size:13px;font-family:'Instrument Sans',sans-serif;border:1px solid var(--rule);background:var(--white);color:var(--ink);border-radius:6px;cursor:pointer;transition:background .15s;}
+#sidebar-nav button:hover{background:var(--surf);}
+#sidebar-nav button:disabled{opacity:.35;cursor:not-allowed;}
+#sidebar-nav button.primary{background:var(--black);color:#fff;border-color:var(--black);}
+#sidebar-nav button.primary:hover{background:#333;}
+.step-badge{display:inline-block;font-size:12px;font-weight:500;padding:4px 12px;border-radius:99px;background:var(--blue-bg);color:var(--blue-tx);margin-bottom:10px;}
+.step-num{font-size:12px;color:var(--gray);font-family:'JetBrains Mono',monospace;}
+
+/* ── CANVAS AREA ── */
+#canvas-area{display:flex;flex-direction:column;overflow:hidden;}
+#toolbar{padding:12px 28px;border-bottom:1px solid var(--rule);background:var(--white);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+#toolbar label{font-size:12px;color:var(--gray);}
+.tool-btn{padding:6px 14px;font-size:13px;font-family:'Instrument Sans',sans-serif;border:1px solid var(--rule);background:var(--white);color:var(--ink);border-radius:6px;cursor:pointer;transition:all .15s;}
+.tool-btn:hover{background:var(--surf);}
+.tool-btn.active{background:var(--black);color:#fff;border-color:var(--black);}
+.tool-sep{width:1px;height:22px;background:var(--rule);margin:0 4px;}
+#color-pick{width:30px;height:30px;padding:2px;border-radius:6px;border:1px solid var(--rule);cursor:pointer;}
+#size-pick{width:80px;}
+.clear-btn{padding:6px 14px;font-size:13px;font-family:'Instrument Sans',sans-serif;border:1px solid var(--rule);background:var(--white);color:var(--red-tx);border-radius:6px;cursor:pointer;}
+.clear-btn:hover{background:var(--red-bg);}
+
+#mat-container{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;position:relative;padding:32px;}
+#mat-wrap{position:relative;}
+#mat-inner{pointer-events:none;user-select:none;}
+#phase-solve{position:relative;width:100%;height:100%;}
+#anno-canvas{position:absolute;top:0;left:0;width:100%;height:100%;cursor:crosshair;z-index:10;}
+
+/* ── LEGEND ── */
+#legend{padding:10px 28px;border-top:1px solid var(--rule);background:var(--white);display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+#legend span.ll{font-size:12px;color:var(--gray);}
+.leg{font-size:12px;padding:3px 10px;border-radius:4px;}
+.leg-star{background:var(--green-bg);color:var(--green-tx);}
+.leg-prime{background:var(--red-bg);color:var(--red-tx);}
+.leg-cov{background:var(--surf);color:var(--gray);}
+.leg-lambda{background:var(--amber-bg);color:var(--amber-tx);}
+.leg-zero{background:var(--blue-bg);color:var(--blue-tx);}
+
+/* ── TABLE ── */
+table.mat{border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:18px;}
+table.mat th{font-size:13px;font-weight:500;color:var(--gray);padding:12px 20px;border-bottom:1px solid var(--rule);text-align:center;font-family:'Instrument Sans',sans-serif;}
+table.mat td{padding:14px 22px;text-align:center;border:1px solid var(--rule);min-width:72px;transition:background .3s,color .3s;}
+td.row-lbl{font-size:13px;color:var(--gray);font-family:'Instrument Sans',sans-serif;border:none;border-right:1px solid var(--rule);background:var(--surf)!important;padding:14px 18px;}
+td.normal{color:var(--ink);background:var(--white);}
+td.zero{color:var(--blue-tx);background:var(--white);font-weight:500;}
+td.star{color:var(--green-tx);background:var(--green-bg);font-weight:500;}
+td.prime{color:var(--red-tx);background:var(--red-bg);font-weight:500;}
+td.cov{color:var(--gray);background:var(--surf);}
+td.lambda{color:var(--amber-tx);background:var(--amber-bg);font-weight:500;}
+td.result-hi{color:var(--teal-tx);background:var(--teal-bg);font-weight:500;}
+
+/* ── INPUT PHASE ── */
+#phase-input{padding:32px;max-width:600px;}
+#phase-input h2{font-size:20px;font-weight:500;margin-bottom:8px;}
+#phase-input p{font-size:14px;color:var(--gray);margin-bottom:24px;line-height:1.6;}
+table.input-mat{border-collapse:collapse;margin-bottom:20px;font-family:'JetBrains Mono',monospace;}
+table.input-mat th{font-size:13px;font-weight:500;color:var(--gray);padding:8px 14px;border-bottom:1px solid var(--rule);text-align:center;font-family:'Instrument Sans',sans-serif;}
+table.input-mat td{border:1px solid var(--rule);padding:4px 8px;}
+table.input-mat td.row-lbl2{font-size:13px;color:var(--gray);font-family:'Instrument Sans',sans-serif;border:none;border-right:1px solid var(--rule);background:var(--surf);padding:8px 14px;}
+table.input-mat input{width:64px;text-align:center;font-size:16px;font-family:'JetBrains Mono',monospace;border:none;background:transparent;color:var(--ink);outline:none;padding:8px 4px;}
+table.input-mat input:focus{background:var(--blue-bg);}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;}
+.btn-row button{padding:10px 20px;font-size:14px;font-family:'Instrument Sans',sans-serif;border:1px solid var(--rule);background:var(--white);color:var(--ink);border-radius:6px;cursor:pointer;transition:background .15s;}
+.btn-row button:hover{background:var(--surf);}
+.btn-row button.go{background:var(--black);color:#fff;border-color:var(--black);font-weight:500;}
+.btn-row button.go:hover{background:#333;}
+.error{color:var(--red-tx);font-size:13px;margin-top:8px;display:none;}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <h1>Algorithme Hongrois <span>— Simulateur interactif</span></h1>
+  <button onclick="backToInput()" style="margin-left:auto;padding:6px 16px;font-size:13px;font-family:'Instrument Sans',sans-serif;border:1px solid var(--rule);background:var(--white);border-radius:6px;cursor:pointer;" id="btn-edit" style="display:none;">Modifier la matrice</button>
+</div>
+
+<div id="main">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div id="sidebar-top">
+      <div id="step-badge" class="step-badge">Saisie</div>
+      <div id="step-num" class="step-num"></div>
+    </div>
+    <div id="explain">Entrez vos valeurs dans la matrice à droite, puis cliquez sur Résoudre.</div>
+    <div id="sidebar-nav">
+      <button id="btn-prev" onclick="prevStep()" disabled>← Préc.</button>
+      <button id="btn-next" onclick="nextStep()" disabled>Suiv. →</button>
+      <button class="primary" onclick="resetSolve()" id="btn-reset" style="display:none;">↺ Reset</button>
+    </div>
+  </div>
+
+  <!-- CANVAS AREA -->
+  <div id="canvas-area">
+
+    <!-- TOOLBAR -->
+    <div id="toolbar">
+      <label>Outil :</label>
+      <button class="tool-btn active" id="tool-pen"   onclick="setTool('pen')">Stylo</button>
+      <button class="tool-btn"        id="tool-arrow" onclick="setTool('arrow')">Flèche</button>
+      <button class="tool-btn"        id="tool-erase" onclick="setTool('erase')">Gomme</button>
+      <div class="tool-sep"></div>
+      <label>Couleur</label>
+      <input type="color" id="color-pick" value="#c0392b">
+      <label>Épaisseur</label>
+      <input type="range" id="size-pick" min="1" max="10" value="3" step="1">
+      <div class="tool-sep"></div>
+      <button class="clear-btn" onclick="clearAnno()">Effacer annotations</button>
+    </div>
+
+    <!-- MATRIX -->
+    <div id="mat-container">
+      <!-- INPUT PHASE -->
+      <div id="phase-input">
+        <h2>Votre matrice de coûts</h2>
+        <p>Saisissez les valeurs (entiers ≥ 0). Chaque ligne = un agent, chaque colonne = une tâche.</p>
+        <table class="input-mat" id="input-table"></table>
+        <div class="error" id="err-msg">Veuillez remplir toutes les cases avec des entiers positifs.</div>
+        <div class="btn-row">
+          <button onclick="loadExample()">Charger l'exemple du cours</button>
+          <button onclick="resetInput()">Effacer tout</button>
+          <button class="go" onclick="startSolve()">Résoudre →</button>
+        </div>
+      </div>
+
+      <!-- SOLVE PHASE -->
+      <div id="phase-solve" style="display:none;">
+        <div id="mat-wrap">
+          <div id="mat-inner"></div>
+        </div>
+        <canvas id="anno-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- LEGEND -->
+    <div id="legend">
+      <span class="ll">Légende :</span>
+      <span class="leg leg-star">0★ sélectionné</span>
+      <span class="leg leg-prime">0' primé</span>
+      <span class="leg leg-zero">0 simple</span>
+      <span class="leg leg-cov">couvert</span>
+      <span class="leg leg-lambda">λ min</span>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+const N=4;
+const ROWS=['Tech A','Tech B','Tech C','Tech D'];
+const COLS=['Int A','Int B','Int C','Int D'];
+const EXAMPLE=[[9,4,4,7],[6,3,4,7],[5,9,10,10],[5,8,6,9]];
+
+let userMat=Array.from({length:N},()=>Array(N).fill(''));
+let steps=[],cur=0;
+let annotations=[],drawing=false,lastX=0,lastY=0,arrowStart=null,tool='pen';
+
+/* ── INPUT ── */
+function buildInputTable(){
+  const t=document.getElementById('input-table');
+  let h='<thead><tr><th></th>';
+  COLS.forEach(c=>h+=`<th>${c}</th>`);
+  h+='</tr></thead><tbody>';
+  for(let i=0;i<N;i++){
+    h+=`<tr><td class="row-lbl2">${ROWS[i]}</td>`;
+    for(let j=0;j<N;j++){
+      const v=userMat[i][j]===''?'':userMat[i][j];
+      h+=`<td><input type="number" min="0" max="999" value="${v}" data-i="${i}" data-j="${j}" oninput="onInput(this)"></td>`;
+    }
+    h+='</tr>';
+  }
+  h+='</tbody>';
+  t.innerHTML=h;
+}
+function onInput(el){
+  const i=+el.dataset.i,j=+el.dataset.j;
+  userMat[i][j]=el.value===''?'':parseInt(el.value);
+}
+function loadExample(){userMat=EXAMPLE.map(r=>[...r]);buildInputTable();}
+function resetInput(){userMat=Array.from({length:N},()=>Array(N).fill(''));buildInputTable();}
+
+function startSolve(){
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+    if(userMat[i][j]===''||isNaN(userMat[i][j])||userMat[i][j]<0){
+      document.getElementById('err-msg').style.display='block';return;
+    }
+  }
+  document.getElementById('err-msg').style.display='none';
+  steps=computeSteps(userMat.map(r=>[...r]));
+  cur=0;annotations=[];
+  document.getElementById('phase-input').style.display='none';
+  document.getElementById('phase-solve').style.display='block';
+  document.getElementById('btn-edit').style.display='block';
+  document.getElementById('btn-reset').style.display='block';
+  document.getElementById('btn-prev').disabled=false;
+  document.getElementById('btn-next').disabled=false;
+  renderStep();
+}
+
+function backToInput(){
+  document.getElementById('phase-solve').style.display='none';
+  document.getElementById('phase-input').style.display='block';
+  document.getElementById('btn-edit').style.display='none';
+  document.getElementById('btn-reset').style.display='none';
+  document.getElementById('btn-prev').disabled=true;
+  document.getElementById('btn-next').disabled=true;
+  document.getElementById('step-badge').textContent='Saisie';
+  document.getElementById('step-num').textContent='';
+  document.getElementById('explain').textContent='Entrez vos valeurs dans la matrice à droite, puis cliquez sur Résoudre.';
+}
+
+function resetSolve(){cur=0;annotations=[];renderStep();}
+
+/* ── ALGORITHM ── */
+function computeSteps(origMat){
+  const res=[];
+  let mat=origMat.map(r=>[...r]);
+
+  res.push({label:'Matrice initiale',explain:'Voici votre matrice de coûts de départ.\n\nLignes = agents (Tech A–D)\nColonnes = tâches (Int A–D)\n\nObjectif : minimiser le coût total d\'affectation.',mat:mat.map(r=>[...r]),styles:{}});
+
+  for(let i=0;i<N;i++){const m=Math.min(...mat[i]);if(m>0)mat[i]=mat[i].map(v=>v-m);}
+  let s1={};
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++) if(mat[i][j]===0) s1[i+'-'+j]='zero';
+  res.push({label:'Étape 0 — Réduction lignes',explain:'Pour chaque ligne, on soustrait la valeur minimale à tous les éléments.\n\nCela crée au moins un zéro par ligne, sans changer la solution optimale.',mat:mat.map(r=>[...r]),styles:{...s1}});
+
+  for(let j=0;j<N;j++){const col=mat.map(r=>r[j]);const m=Math.min(...col);if(m>0)for(let i=0;i<N;i++)mat[i][j]-=m;}
+  let s2={};
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++) if(mat[i][j]===0) s2[i+'-'+j]='zero';
+  res.push({label:'Étape 0 — Réduction colonnes',explain:'On applique la même opération sur les colonnes : soustraire le minimum de chaque colonne.\n\nLa matrice réduite contient maintenant des zéros dans chaque ligne et colonne.',mat:mat.map(r=>[...r]),styles:{...s2}});
+
+  let starred=Array.from({length:N},()=>Array(N).fill(false));
+  let rowCov=Array(N).fill(false),colCov=Array(N).fill(false);
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+    if(mat[i][j]===0&&!rowCov[i]&&!colCov[j]){starred[i][j]=true;rowCov[i]=true;colCov[j]=true;}
+  }
+  rowCov.fill(false);colCov.fill(false);
+
+  let st3={};
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++) if(mat[i][j]===0) st3[i+'-'+j]=starred[i][j]?'star':'zero';
+  const cnt1=starred.flat().filter(Boolean).length;
+  res.push({label:'Étape 1 — Zéros indépendants',explain:`On sélectionne les zéros indépendants (★) :\nun par ligne ET un par colonne, sans conflit.\n\nRésultat : ${cnt1}★ pour ${N} lignes.\n${cnt1<N?'→ Insuffisant, on continue.':'→ Solution trouvée !'}`,mat:mat.map(r=>[...r]),styles:{...st3}});
+
+  if(cnt1===N){
+    const r=buildResult(starred,origMat);
+    res.push({label:'Solution optimale !',explain:r.explain,mat:origMat.map(r=>[...r]),styles:r.styles});
+    return res;
+  }
+
+  let maxIter=20;
+  while(maxIter-->0){
+    colCov=Array(N).fill(false);rowCov=Array(N).fill(false);
+    for(let j=0;j<N;j++) for(let i=0;i<N;i++) if(starred[i][j]) colCov[j]=true;
+
+    let primed=Array.from({length:N},()=>Array(N).fill(false));
+    let done=false,augRow=-1,augCol=-1;
+    outer: while(true){
+      let found=false;
+      for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+        if(mat[i][j]===0&&!rowCov[i]&&!colCov[j]){
+          primed[i][j]=true;
+          let sc=-1;
+          for(let jj=0;jj<N;jj++) if(starred[i][jj]){sc=jj;break;}
+          if(sc>=0){rowCov[i]=true;colCov[sc]=false;}
+          else{augRow=i;augCol=j;done=true;break outer;}
+          found=true;break;
+        }
+      }
+      if(!found) break;
+    }
+
+    let covSt={};
+    for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+      const isCov=rowCov[i]||colCov[j];
+      if(mat[i][j]===0) covSt[i+'-'+j]=starred[i][j]?'star':primed[i][j]?'prime':isCov?'cov':'zero';
+      else if(isCov) covSt[i+'-'+j]='cov';
+    }
+    const sc=starred.flat().filter(Boolean).length;
+    res.push({label:`Étape 2 — Couverture (${sc}★)`,explain:`On couvre les colonnes ayant des ★.\nOn prime (0') les zéros non couverts.\n\n${done?'Un 0\' sans ★ sur sa ligne trouvé → étape 2\'.':'Tous les zéros couverts → étape 3.'}`,mat:mat.map(r=>[...r]),styles:covSt});
+
+    if(done){
+      let path=[[augRow,augCol]];
+      let c2=augCol;
+      while(true){
+        let sr=-1;
+        for(let i=0;i<N;i++) if(starred[i][c2]){sr=i;break;}
+        if(sr<0) break;
+        path.push([sr,c2]);
+        let pc=-1;
+        for(let j=0;j<N;j++) if(primed[sr][j]){pc=j;break;}
+        if(pc<0) break;
+        path.push([sr,pc]);
+        c2=pc;
+      }
+      path.forEach(([pi,pj],idx)=>{starred[pi][pj]=idx%2===0;});
+      primed=Array.from({length:N},()=>Array(N).fill(false));
+      rowCov.fill(false);colCov.fill(false);
+
+      let nSt={};
+      for(let i=0;i<N;i++) for(let j=0;j<N;j++) if(mat[i][j]===0) nSt[i+'-'+j]=starred[i][j]?'star':'zero';
+      const nc=starred.flat().filter(Boolean).length;
+      res.push({label:`Étape 2' — Suite Zi (${nc}★)`,explain:`On construit la suite alternante Z0(0') → Z1(★) → Z2(0')…\n\nOn intervertit : les 0' deviennent ★ et inversement.\n\nRésultat : ${nc}★.\n${nc<N?'→ On refait un cycle.':'→ Solution trouvée !'}`,mat:mat.map(r=>[...r]),styles:nSt});
+
+      if(nc===N){
+        const r=buildResult(starred,origMat);
+        res.push({label:'Solution optimale !',explain:r.explain,mat:origMat.map(r=>[...r]),styles:r.styles});
+        return res;
+      }
+      continue;
+    }
+
+    let lambda=Infinity;
+    for(let i=0;i<N;i++) for(let j=0;j<N;j++) if(!rowCov[i]&&!colCov[j]) lambda=Math.min(lambda,mat[i][j]);
+
+    let lSt={};
+    for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+      if(!rowCov[i]&&!colCov[j]) lSt[i+'-'+j]=mat[i][j]===lambda?'lambda':'normal';
+      else if(colCov[j]) lSt[i+'-'+j]=starred[i][j]?'star':'cov';
+      else lSt[i+'-'+j]='cov';
+    }
+    res.push({label:`Étape 3 — Ajustement λ=${lambda}`,explain:`λ = plus petite valeur non couverte = ${lambda}\n\n— Colonnes non couvertes : − λ\n— Lignes couvertes : + λ\n— Intersections : inchangées\n\nCela crée de nouveaux zéros sans modifier la solution optimale.`,mat:mat.map(r=>[...r]),styles:lSt});
+
+    for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+      if(!rowCov[i]&&!colCov[j]) mat[i][j]-=lambda;
+      else if(rowCov[i]&&colCov[j]) mat[i][j]+=lambda;
+    }
+    let aft={};
+    for(let i=0;i<N;i++) for(let j=0;j<N;j++) if(mat[i][j]===0) aft[i+'-'+j]=starred[i][j]?'star':'zero';
+    res.push({label:'Après ajustement',explain:'Nouvelle matrice après ajustement.\n\nOn repart à l\'étape 1 pour chercher de nouveaux zéros indépendants.',mat:mat.map(r=>[...r]),styles:aft});
+
+    rowCov.fill(false);colCov.fill(false);
+    const cnt=starred.flat().filter(Boolean).length;
+    if(cnt===N){
+      const r=buildResult(starred,origMat);
+      res.push({label:'Solution optimale !',explain:r.explain,mat:origMat.map(r=>[...r]),styles:r.styles});
+      return res;
+    }
+  }
+  return res;
+}
+
+function buildResult(starred,orig){
+  let total=0,styles={},lines=[];
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+    if(starred[i][j]){total+=orig[i][j];styles[i+'-'+j]='star';lines.push(`${ROWS[i]} → ${COLS[j]} (${orig[i][j]})`);}
+  }
+  return{styles,explain:`Affectation optimale trouvée !\n\n${lines.join('\n')}\n\nCoût total minimal = ${total}`};
+}
+
+/* ── RENDER ── */
+function renderStep(){
+  const s=steps[cur];
+  let h='<table class="mat"><thead><tr><th></th>';
+  COLS.forEach(c=>h+=`<th>${c}</th>`);
+  h+='</tr></thead><tbody>';
+  s.mat.forEach((row,i)=>{
+    h+=`<tr><td class="row-lbl">${ROWS[i]}</td>`;
+    row.forEach((val,j)=>{
+      const k=i+'-'+j,cl=s.styles[k]||'normal';
+      h+=`<td class="${cl}">${val}</td>`;
+    });
+    h+='</tr>';
+  });
+  h+='</tbody></table>';
+  document.getElementById('mat-inner').innerHTML=h;
+  document.getElementById('explain').innerText=s.explain;
+  document.getElementById('step-badge').textContent=s.label;
+  document.getElementById('step-num').textContent=`Étape ${cur+1} / ${steps.length}`;
+  document.getElementById('btn-prev').disabled=cur===0;
+  document.getElementById('btn-next').disabled=cur===steps.length-1;
+  resizeCanvas();redrawAnno();
+}
+
+function nextStep(){if(cur<steps.length-1){cur++;renderStep();}}
+function prevStep(){if(cur>0){cur--;renderStep();}}
+
+/* ── CANVAS ── */
+function resizeCanvas(){
+  const container=document.getElementById('mat-container');
+  const c=document.getElementById('anno-canvas');
+  c.width=container.clientWidth;c.height=container.clientHeight;
+  c.style.width=container.clientWidth+'px';c.style.height=container.clientHeight+'px';
+}
+function redrawAnno(){
+  const c=document.getElementById('anno-canvas');
+  const x=c.getContext('2d');
+  x.clearRect(0,0,c.width,c.height);
+  annotations.forEach(a=>{
+    x.strokeStyle=a.color;x.fillStyle=a.color;x.lineWidth=a.size;x.lineCap='round';x.lineJoin='round';
+    if(a.type==='path'&&a.pts.length>1){x.beginPath();x.moveTo(a.pts[0].x,a.pts[0].y);a.pts.forEach(p=>x.lineTo(p.x,p.y));x.stroke();}
+    else if(a.type==='arrow') drawArrow(x,a.x1,a.y1,a.x2,a.y2,a.size);
+  });
+}
+function drawArrow(x,x1,y1,x2,y2,lw){
+  const hw=Math.max(10,lw*3.5),angle=Math.atan2(y2-y1,x2-x1);
+  x.beginPath();x.moveTo(x1,y1);x.lineTo(x2,y2);x.stroke();
+  x.beginPath();x.moveTo(x2,y2);x.lineTo(x2-hw*Math.cos(angle-0.4),y2-hw*Math.sin(angle-0.4));x.lineTo(x2-hw*Math.cos(angle+0.4),y2-hw*Math.sin(angle+0.4));x.closePath();x.fill();
+}
+function getPos(e,c){
+  const r=c.getBoundingClientRect(),src=e.touches?e.touches[0]:e;
+  return{x:(src.clientX-r.left)*(c.width/r.width),y:(src.clientY-r.top)*(c.height/r.height)};
+}
+function setTool(t){
+  tool=t;
+  ['pen','arrow','erase'].forEach(x=>{
+    const b=document.getElementById('tool-'+x);
+    if(b){b.classList.toggle('active',x===t);}
+  });
+  document.getElementById('anno-canvas').style.cursor=t==='erase'?'cell':'crosshair';
+}
+function clearAnno(){annotations=[];redrawAnno();}
+
+const canv=()=>document.getElementById('anno-canvas');
+document.addEventListener('mousedown',e=>{
+  const c=canv();if(!c||e.target!==c)return;
+  e.preventDefault();const p=getPos(e,c);
+  if(tool==='erase'){
+    const sz=parseInt(document.getElementById('size-pick').value)*5;
+    annotations=annotations.filter(a=>{
+      if(a.type==='path') return !a.pts.some(pt=>Math.hypot(pt.x-p.x,pt.y-p.y)<sz);
+      return Math.hypot((a.x1+a.x2)/2-p.x,(a.y1+a.y2)/2-p.y)>sz;
+    });
+    redrawAnno();return;
+  }
+  drawing=true;lastX=p.x;lastY=p.y;
+  const color=document.getElementById('color-pick').value;
+  const size=parseInt(document.getElementById('size-pick').value);
+  if(tool==='pen') annotations.push({type:'path',pts:[{x:p.x,y:p.y}],color,size});
+  if(tool==='arrow') arrowStart={x:p.x,y:p.y};
+});
+document.addEventListener('mousemove',e=>{
+  const c=canv();if(!c||!drawing)return;
+  e.preventDefault();const p=getPos(e,c);
+  const color=document.getElementById('color-pick').value;
+  const size=parseInt(document.getElementById('size-pick').value);
+  if(tool==='pen'&&annotations.length){
+    annotations[annotations.length-1].pts.push({x:p.x,y:p.y});
+    const x=c.getContext('2d');x.strokeStyle=color;x.lineWidth=size;x.lineCap='round';
+    x.beginPath();x.moveTo(lastX,lastY);x.lineTo(p.x,p.y);x.stroke();
+  }
+  if(tool==='arrow'&&arrowStart){
+    redrawAnno();
+    const x=c.getContext('2d');x.strokeStyle=color;x.fillStyle=color;x.lineWidth=size;
+    drawArrow(x,arrowStart.x,arrowStart.y,p.x,p.y,size);
+  }
+  lastX=p.x;lastY=p.y;
+});
+document.addEventListener('mouseup',e=>{
+  const c=canv();if(!c||!drawing)return;
+  drawing=false;const p=getPos(e,c);
+  if(tool==='arrow'&&arrowStart){
+    const color=document.getElementById('color-pick').value;
+    const size=parseInt(document.getElementById('size-pick').value);
+    annotations.push({type:'arrow',x1:arrowStart.x,y1:arrowStart.y,x2:p.x,y2:p.y,color,size});
+    arrowStart=null;redrawAnno();
+  }
+});
+window.addEventListener('resize',()=>{if(steps.length){resizeCanvas();redrawAnno();}});
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight') nextStep();
+  if(e.key==='ArrowLeft') prevStep();
+});
+
+buildInputTable();
+</script>
+</body>
+</html>
